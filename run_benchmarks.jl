@@ -9,6 +9,7 @@ Options:
     -g <threads>, --gcthreads=<threads>   Number of GC threads to use [default: 0]. 
     -s <max>, --scale=<max>               Maximum number of gcthreads for scaling test.
     -h, --help                            Show this screen.
+    --heap-size=<mbytes>                  Fixed heap size of the given megabytes [default: 0].
     --version                             Show version.
     --json                                Serializes output to `json` file
 """
@@ -53,7 +54,7 @@ function extract(gc_end, gc_start, p)
     map((gc_end, gc_start)->diff(gc_end, gc_start, p), gc_end, gc_start)
 end
 
-function run_bench(runs, threads, gcthreads, file, show_json = false)
+function run_bench(runs, threads, gcthreads, heap_size, file, show_json = false)
     value = []
     times = []
     gc_diff = []
@@ -63,7 +64,8 @@ function run_bench(runs, threads, gcthreads, file, show_json = false)
         # uglyness to communicate over non stdout (specifically file descriptor 3)
         p = Base.PipeEndpoint()
         _gcthreads = gcthreads == 0 ? `` : `--gcthreads=$gcthreads`
-        cmd = `$JULIAVER --project=. --threads=$threads $_gcthreads $file SERIALIZE`
+        _heap_size = heap_size == 0 ? `` : string("--fixed-heap-size=", heap_size, "M")
+        cmd = `$JULIAVER --project=. --threads=$threads $_gcthreads $_heap_size $file SERIALIZE`
         cmd = run(Base.CmdRedirect(cmd, p, 3), stdin, stdout, stderr, wait=false)
         r = deserialize(p)
         @assert success(cmd)
@@ -135,19 +137,20 @@ function run_category_files(benches, args, show_json = false)
     local threads = parse(Int, args["--threads"])
     local gcthreads = parse(Int, args["--gcthreads"])
     local max = if isnothing(args["--scale"]) 0 else parse(Int, args["--scale"]) end
+    local heap_size = parse(Int, args["--heap-size"])
     for bench in benches
         if !show_json
             @show bench
         end
         if isnothing(args["--scale"])
-            run_bench(runs, threads, gcthreads, bench, show_json)
+            run_bench(runs, threads, gcthreads, heap_size, bench, show_json)
         else
             local n = 0
             while true
                 gcthreads = 2^n
                 gcthreads > max && break
                 @show (gcthreads, threads)
-                run_bench(runs, threads, gcthreads, bench, show_json)
+                run_bench(runs, threads, gcthreads, heap_size, bench, show_json)
                 n += 1
             end
         end
