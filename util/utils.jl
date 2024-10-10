@@ -33,8 +33,11 @@ macro gctime(ex)
         local end_gc_num = start_gc_num
         local start_time = time_ns()
         local end_time = start_time
+        GC.gc()
         try
+            println(stderr, "Benchmark starts...")
             local val = $(esc(ex))
+            println(stderr, "Benchmark ends...")
             end_time = time_ns()
             end_gc_num = Base.gc_num()
             result = (;
