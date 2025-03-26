@@ -344,4 +344,35 @@ inf_call(many_global_refs, (Int,))
 inf_call(many_invoke_calls, (Vector{Float64},))
 inf_call(many_opaque_closures, (Vector{Float64},))
 
+GC.gc(true)
+# -------------------- Julia --------------------
+struct GCFragmentationStats
+    n_freed_objs::Csize_t
+    n_pages_allocd::Csize_t
+end
+
+n_size_classes = 49
+page_size = 16 * 1024
+
+# Option 2: Get a percentage of Julia stock GC page utilization
+utils = Base.gc_page_utilization_data()
+
+# Then get pointer to the GC page utilization array
+ptr = cglobal(:jl_gc_page_fragmentation_stats_export, GCFragmentationStats)
+stats = unsafe_wrap(Array, ptr, (n_size_classes,), own=false)
+
+live_bytes = 0
+for i in 1:n_size_classes
+    println("    Pool $i: $(round(utils[i]*100, digits=2))%, $(stats[i].n_freed_objs) free objs, $(stats[i].n_pages_allocd) pages allocated")
+    global live_bytes
+    live_bytes += stats[i].n_pages_allocd * page_size * utils[i]
+end
+println("    Live : $(Int.(live_bytes)) bytes")
+println("    Total: $(sum(x.n_pages_allocd for x in stats) * page_size) bytes")
+println("    gc_live_bytes(): $(Base.gc_live_bytes())")
+# -------------------- MMTk --------------------
+# const julia_lib_dir = joinpath(dirname(Sys.BINDIR), "lib")
+# const lib_path = joinpath(julia_lib_dir, "libmmtk_julia.so")
+# ccall(("print_fragmentation", lib_path), Cvoid, ())
+
 end # module InferenceBenchmarks
